@@ -42,64 +42,48 @@ export default function UnhingedGenie() {
     
     console.log('🎤 Attempting to speak with ElevenLabs...');
     
-    // If ElevenLabs API key is provided, use that (MUCH better quality)
-    if (elevenLabsKey) {
-      try {
-        console.log('🔑 Using ElevenLabs API key:', elevenLabsKey.substring(0, 15) + '...');
+    try {
+      console.log('🔊 Calling backend voice proxy...');
+      
+      // Call backend proxy instead of ElevenLabs directly (fixes CORS)
+      const response = await fetch('/api/voice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text })
+      });
+      
+      console.log('📡 Voice proxy response status:', response.status);
+      
+      if (response.ok) {
+        const audioBlob = await response.blob();
+        console.log('✅ Audio received, size:', audioBlob.size, 'bytes');
         
-        // Using Adam voice - deep, authoritative, perfect for deadpan sarcastic genie
-        const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB', {
-          method: 'POST',
-          headers: {
-            'Accept': 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': elevenLabsKey
-          },
-          body: JSON.stringify({
-            text: text,
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0.5,
-              use_speaker_boost: true
-            }
-          })
-        });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
         
-        console.log('📡 ElevenLabs response status:', response.status);
+        audio.play()
+          .then(() => console.log('🔊 Playing audio'))
+          .catch(err => console.error('❌ Audio play error:', err));
         
-        if (response.ok) {
-          const audioBlob = await response.blob();
-          console.log('✅ ElevenLabs audio received, size:', audioBlob.size, 'bytes');
-          
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = new Audio(audioUrl);
-          
-          audio.play()
-            .then(() => console.log('🔊 Playing ElevenLabs audio'))
-            .catch(err => console.error('❌ Audio play error:', err));
-          
-          // Clean up after audio finishes
-          audio.onended = () => {
-            console.log('✅ Audio finished playing');
-            URL.revokeObjectURL(audioUrl);
-          };
-          
-          return; // Successfully played with ElevenLabs
-        } else {
-          const errorText = await response.text();
-          console.error('❌ ElevenLabs API error:', response.status, errorText);
-        }
-      } catch (error) {
-        console.error('❌ ElevenLabs error:', error);
-        console.log('⚠️ Falling back to browser TTS...');
+        // Clean up after audio finishes
+        audio.onended = () => {
+          console.log('✅ Audio finished playing');
+          URL.revokeObjectURL(audioUrl);
+        };
+        
+        return; // Successfully played
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Voice proxy error:', response.status, errorText);
       }
-    } else {
-      console.log('⚠️ No ElevenLabs key, using browser TTS');
+    } catch (error) {
+      console.error('❌ Voice error:', error);
+      console.log('⚠️ Falling back to browser TTS...');
     }
     
-    // Fallback to browser TTS if ElevenLabs fails
+    // Fallback to browser TTS if proxy fails
     if (!('speechSynthesis' in window)) {
       console.error('❌ Browser TTS not supported');
       return;
@@ -169,13 +153,13 @@ BE CREATIVE. ROAST HARD. REFERENCE EVERYTHING. make it personal but funny. keep 
 respond in all lowercase:`;
 
     try {
-      console.log('🤖 Calling OpenRouter API for genie response...');
+      console.log('🤖 Calling backend chat proxy for genie response...');
       
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      // Call backend proxy instead of OpenRouter directly (fixes CORS)
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer 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"
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           model: "anthropic/claude-3.5-sonnet",
@@ -190,19 +174,19 @@ respond in all lowercase:`;
         })
       });
 
-      console.log('📡 OpenRouter response status:', response.status);
+      console.log('📡 Chat proxy response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("❌ OpenRouter API Error:", errorData);
+        console.error("❌ Chat proxy error:", errorData);
         throw new Error(`API returned ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('✅ OpenRouter response received');
+      console.log('✅ Chat response received');
       return data.choices[0].message.content.toLowerCase();
     } catch (error) {
-      console.error("❌ OpenRouter error:", error);
+      console.error("❌ Chat error:", error);
       console.log('⚠️ Using fallback response because API failed');
       
       // Deadly fallbacks
