@@ -54,13 +54,80 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Function to preprocess text for better TTS
+function preprocessForTTS(text) {
+  let ttsText = text;
+  
+  // Expand crypto abbreviations
+  const abbreviations = {
+    'btc': 'bitcoin',
+    'eth': 'ethereum',
+    'sol': 'solana',
+    'nft': 'n f t',
+    'defi': 'dee-fie',
+    'dao': 'd a o',
+    'dapp': 'dap',
+    'gm': 'good morning',
+    'ngmi': 'not gonna make it',
+    'wagmi': 'we are all gonna make it',
+    'fomo': 'foe-moe',
+    'hodl': 'hold',
+    'rekt': 'wrecked',
+    'wen': 'when',
+    'ser': 'sir',
+    'anon': 'anonymous',
+    'degen': 'degenerate',
+    'hopium': 'hope-ium',
+    'copium': 'cope-ium'
+  };
+  
+  // Replace abbreviations (case insensitive, word boundaries)
+  Object.keys(abbreviations).forEach(abbr => {
+    const regex = new RegExp(`\\b${abbr}\\b`, 'gi');
+    ttsText = ttsText.replace(regex, abbreviations[abbr]);
+  });
+  
+  // Add natural speech elements randomly
+  const laughVariants = ['*chuckle*', '*slight laugh*', '*snicker*'];
+  const pauseVariants = ['...', ',', ''];
+  
+  // Add occasional laughs before savage lines (30% chance)
+  if (Math.random() > 0.7 && (ttsText.includes('my guy') || ttsText.includes('bro'))) {
+    const laugh = laughVariants[Math.floor(Math.random() * laughVariants.length)];
+    ttsText = laugh + ' ' + ttsText;
+  }
+  
+  // Add slight pauses for emphasis
+  ttsText = ttsText.replace(/\. /g, '... '); // Longer pauses between sentences
+  ttsText = ttsText.replace(/\? /g, '?... '); // Pause after questions
+  
+  // Expand common slang for clarity
+  ttsText = ttsText.replace(/\bfr\b/gi, 'for real');
+  ttsText = ttsText.replace(/\btbh\b/gi, 'to be honest');
+  ttsText = ttsText.replace(/\bidk\b/gi, 'I don\'t know');
+  ttsText = ttsText.replace(/\bomg\b/gi, 'oh my god');
+  ttsText = ttsText.replace(/\bwtf\b/gi, 'what the');
+  ttsText = ttsText.replace(/\bsmh\b/gi, 'shaking my head');
+  ttsText = ttsText.replace(/\baf\b/gi, 'as hell');
+  ttsText = ttsText.replace(/\bngl\b/gi, 'not gonna lie');
+  
+  return ttsText;
+}
+
 // ElevenLabs proxy
 app.post('/api/voice', async (req, res) => {
   try {
     console.log('🎤 Proxying ElevenLabs request...');
     
     const { text } = req.body;
-    const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB', {
+    
+    // Preprocess text for better TTS
+    const ttsText = preprocessForTTS(text);
+    console.log('📝 Original:', text.substring(0, 50));
+    console.log('🗣️ TTS version:', ttsText.substring(0, 50));
+    
+    // Using Mark voice (natural conversations) - voice ID: iP95p4xoKVk53GoZ742B
+    const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/iP95p4xoKVk53GoZ742B', {
       method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
@@ -68,12 +135,12 @@ app.post('/api/voice', async (req, res) => {
         'xi-api-key': ELEVENLABS_API_KEY
       },
       body: JSON.stringify({
-        text: text,
-        model_id: 'eleven_turbo_v2_5', // Updated to newer free tier model
+        text: ttsText,
+        model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.5,
+          stability: 0.4,
+          similarity_boost: 0.8,
+          style: 0.6,
           use_speaker_boost: true
         }
       })
