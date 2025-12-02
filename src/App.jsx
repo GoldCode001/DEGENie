@@ -1,123 +1,197 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, Volume2, VolumeX, Settings, X } from 'lucide-react';
+import { Sparkles, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 
 export default function UnhingedGenie() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'genie',
-      content: "greetings, mortal. i am the genie, ancient and powerful, here to grant your deepest desires. you have three wishes. choose wisely, for such opportunities are rare in this world. what is your first wish?"
-    }
-  ]);
-  const [input, setInput] = useState('');
+  const [currentResponse, setCurrentResponse] = useState("tap the lamp and speak your wish, mortal...");
   const [wishesLeft, setWishesLeft] = useState(3);
   const [isLoading, setIsLoading] = useState(false);
   const [usedFallbacks, setUsedFallbacks] = useState(new Set());
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [elevenLabsKey, setElevenLabsKey] = useState('sk_c45cc1bd3b396ca5277a1bc62c005d216140371f44c23f5f');
-  const [showSettings, setShowSettings] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const messagesEndRef = useRef(null);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [userWish, setUserWish] = useState('');
+  
+  const recognitionRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Initialize Speech Recognition
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Initialize voices for Web Speech API
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      // Load voices
-      window.speechSynthesis.getVoices();
-      // Some browsers need this event listener
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      recognition.onstart = () => {
+        console.log('🎤 Voice recognition started');
+        setIsListening(true);
+        setCurrentResponse("listening to your wish...");
       };
+      
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0])
+          .map(result => result.transcript)
+          .join('');
+        
+        console.log('🗣️ Transcript:', transcript);
+        setUserWish(transcript);
+        setCurrentResponse(`"${transcript}"`);
+        
+        if (event.results[0].isFinal) {
+          console.log('✅ Final transcript received');
+          // Auto-submit after getting final transcript
+          setTimeout(() => {
+            handleWish(transcript);
+          }, 500);
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('❌ Speech recognition error:', event.error);
+        setIsListening(false);
+        setCurrentResponse("couldn't hear you, mortal. tap again.");
+        
+        if (event.error === 'not-allowed') {
+          setCurrentResponse("microphone blocked. allow access to speak your wishes.");
+        }
+      };
+      
+      recognition.onend = () => {
+        console.log('🎤 Voice recognition ended');
+        setIsListening(false);
+      };
+      
+      recognitionRef.current = recognition;
+    } else {
+      setSpeechSupported(false);
     }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
   }, []);
+
+  // Initialize Audio Context for visualization
+  useEffect(() => {
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    analyserRef.current = audioContextRef.current.createAnalyser();
+    analyserRef.current.fftSize = 256;
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  const startAudioVisualization = (audioElement) => {
+    if (!audioContextRef.current || !analyserRef.current) return;
+    
+    try {
+      const source = audioContextRef.current.createMediaElementSource(audioElement);
+      source.connect(analyserRef.current);
+      analyserRef.current.connect(audioContextRef.current.destination);
+      
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      
+      const updateLevel = () => {
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        setAudioLevel(average / 255);
+        
+        if (isPlaying) {
+          animationFrameRef.current = requestAnimationFrame(updateLevel);
+        }
+      };
+      
+      updateLevel();
+    } catch (e) {
+      console.log('Audio already connected or error:', e);
+    }
+  };
 
   const speakText = async (text) => {
     if (!voiceEnabled) return;
     
-    console.log('🎤 Attempting to speak with ElevenLabs...');
+    setIsPlaying(true);
     
     try {
-      console.log('🔊 Calling backend voice proxy...');
-      
-      // Call backend proxy instead of ElevenLabs directly (fixes CORS)
       const response = await fetch('/api/voice', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
       });
       
-      console.log('📡 Voice proxy response status:', response.status);
-      
       if (response.ok) {
         const audioBlob = await response.blob();
-        console.log('✅ Audio received, size:', audioBlob.size, 'bytes');
-        
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
         
-        audio.play()
-          .then(() => console.log('🔊 Playing audio'))
-          .catch(err => console.error('❌ Audio play error:', err));
+        // Resume audio context if suspended
+        if (audioContextRef.current?.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
         
-        // Clean up after audio finishes
-        audio.onended = () => {
-          console.log('✅ Audio finished playing');
-          URL.revokeObjectURL(audioUrl);
+        audio.onplay = () => {
+          startAudioVisualization(audio);
         };
         
-        return; // Successfully played
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Voice proxy error:', response.status, errorText);
+        audio.onended = () => {
+          setIsPlaying(false);
+          setAudioLevel(0);
+          URL.revokeObjectURL(audioUrl);
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+          }
+        };
+        
+        await audio.play();
+        return;
       }
     } catch (error) {
-      console.error('❌ Voice error:', error);
-      console.log('⚠️ Falling back to browser TTS...');
+      console.error('Voice error:', error);
     }
     
-    // Fallback to browser TTS if proxy fails
-    if (!('speechSynthesis' in window)) {
-      console.error('❌ Browser TTS not supported');
-      return;
+    // Fallback to browser TTS
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.15;
+      utterance.pitch = 0.85;
+      
+      // Simulate audio levels for browser TTS
+      let fakeLevel = 0;
+      const interval = setInterval(() => {
+        fakeLevel = 0.3 + Math.random() * 0.5;
+        setAudioLevel(fakeLevel);
+      }, 100);
+      
+      utterance.onend = () => {
+        clearInterval(interval);
+        setIsPlaying(false);
+        setAudioLevel(0);
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setIsPlaying(false);
+      setAudioLevel(0);
     }
-    
-    console.log('🗣️ Using browser TTS as fallback');
-    window.speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.15;
-    utterance.pitch = 0.85;
-    utterance.volume = 1.0;
-    
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(voice => 
-      voice.lang.startsWith('en') && (
-        voice.name.includes('Natural') || 
-        voice.name.includes('Enhanced') ||
-        voice.name.includes('Premium') ||
-        voice.name.includes('Google')
-      )
-    ) || voices.find(voice => voice.lang.startsWith('en-US'));
-    
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-      console.log('🎙️ Using voice:', preferredVoice.name);
-    }
-    
-    window.speechSynthesis.speak(utterance);
   };
 
-  const generateGenieResponse = async (userWish) => {
-    const geniePrompt = `you're a genie that roasts wishes. someone wished: "${userWish}"
+  const generateGenieResponse = async (wish) => {
+    const geniePrompt = `you're a genie that roasts wishes. someone wished: "${wish}"
 
 YOUR STYLE:
 - SHORT (1-2 sentences, NO MORE)
@@ -131,37 +205,8 @@ ROAST FORMULA:
 2. compare it to something specific and devastating
 3. DONE. no explaining, no lectures.
 
-GOOD ROASTS THAT ACTUALLY HIT:
-
-"i wish for a lambo"
-→ "lambo. you can't even parallel park your civic but sure let's add an italian mid-life crisis to the mix"
-
-"i wish for bitcoin to hit 100k"
-→ "100k bitcoin lmao. you bought at 68k didn't you. the copium is hitting different"
-
-"i wish to be rich"
-→ "rich. not even a number, just vibes. that's like saying you want 'food' and wondering why you're still hungry"
-
-"i wish for a girlfriend"
-→ "girlfriend. my guy you're asking a lamp for relationship advice. your standards and your chances both in the negatives"
-
-"i wish for 5 eth"
-→ "5 eth. can't even dream past gas fees. that's the crypto equivalent of wishing for $50 at a casino"
-
-"i wish for true love"
-→ "true love from javascript code. disney really did a number on this generation huh"
-
-"i wish to be successful"
-→ "successful. bro just ordered the abstract concept and expected delivery. amazon prime got you thinking success ships in 2 days"
-
-"i wish for a million dollars"
-→ "million dollars. that's your grandpa's rich. inflation already murdered this wish before i even started"
-
-"i wish for happiness"
-→ "happiness from a chatbot. therapy's $150 an hour but you chose to trauma dump to javascript instead"
-
 KEY RULES:
-- SPECIFIC comparisons only (civic, gas fees, disney, amazon prime)
+- SPECIFIC comparisons only
 - NO lengthy explanations
 - HIT what they're ACTUALLY revealing about themselves
 - keep it 1-2 sentences MAX
@@ -169,56 +214,36 @@ KEY RULES:
 
 respond in all lowercase:`;
 
-
     try {
-      console.log('🤖 Calling backend chat proxy for genie response...');
-      
-      // Call backend proxy instead of OpenRouter directly (fixes CORS)
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "anthropic/claude-3.5-sonnet",
-          messages: [
-            { 
-              role: "user", 
-              content: geniePrompt 
-            }
-          ],
+          messages: [{ role: "user", content: geniePrompt }],
           temperature: 1.3,
           max_tokens: 200
         })
       });
 
-      console.log('📡 Chat proxy response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("❌ Chat proxy error:", errorData);
-        throw new Error(`API returned ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`API returned ${response.status}`);
 
       const data = await response.json();
-      console.log('✅ Chat response received');
       return data.choices[0].message.content.toLowerCase();
     } catch (error) {
-      console.error("❌ Chat error:", error);
-      console.log('⚠️ Using fallback response because API failed');
+      console.error("Chat error:", error);
       
-      // Deadly fallbacks
       const allFallbacks = [
-        "nah see this is wild. you're out here wishing while jeff bezos is literally building rockets. the confidence is admirable, the execution is not",
-        "interesting choice. kanye made college dropout. you just made a mid wish. the parallel is there somewhere",
+        "nah see this is wild. you're out here wishing while jeff bezos is literally building rockets.",
+        "interesting choice. kanye made college dropout. you just made a mid wish.",
         "bro said what he said with full confidence. respect. wrong, but respect",
         "this giving major 'i'll start monday' energy. we both know how this ends",
-        "you know what? the fact that you thought this would work is actually impressive. not in a good way, but impressive",
-        "nah this is it. this is the wish that historians will study and wonder what happened here",
-        "my guy woke up and chose chaos. not the good kind either. just chaos",
+        "you know what? the fact that you thought this would work is actually impressive.",
+        "nah this is it. this is the wish that historians will study.",
+        "my guy woke up and chose chaos. not the good kind either.",
         "you ever see someone miss so badly it's almost artistic? yeah",
         "this hitting different and not in the way you hoped. try again g",
-        "the audacity is crazy. the follow-through? nonexistent. tale as old as time"
+        "the audacity is crazy. the follow-through? nonexistent."
       ];
       
       const availableFallbacks = allFallbacks.filter((_, index) => !usedFallbacks.has(index));
@@ -233,241 +258,301 @@ respond in all lowercase:`;
       const originalIndex = allFallbacks.indexOf(selectedFallback);
       
       setUsedFallbacks(prev => new Set([...prev, originalIndex]));
-      
-      console.log(`💬 Using fallback #${originalIndex}: "${selectedFallback.substring(0, 50)}..."`);
-      
       return selectedFallback;
     }
   };
 
-  const handleSendWish = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleWish = async (wish) => {
+    if (!wish?.trim() || isLoading) return;
     
-    // If no wishes left, show payment modal
     if (wishesLeft === 0) {
       setShowPaymentModal(true);
       return;
     }
 
-    const userWish = input.trim();
-    setInput('');
-    
-    // Add user message
-    setMessages(prev => [...prev, { role: 'user', content: userWish }]);
     setIsLoading(true);
+    setCurrentResponse("the genie contemplates your fate...");
 
-    // Decrease wishes
     const newWishesLeft = wishesLeft - 1;
     setWishesLeft(newWishesLeft);
 
-    // Generate genie response
-    const genieResponse = await generateGenieResponse(userWish);
+    const genieResponse = await generateGenieResponse(wish);
     
     let finalResponse = genieResponse;
     
-    // Add special message if that was the last wish
     if (newWishesLeft === 0) {
-      finalResponse += "\n\nand with that, your three wishes are complete. the lamp grows cold, the magic fades. but hey, for just 2 usdt you can get 3 more wishes. keep the chaos going.";
-      // Show payment modal after a delay
-      setTimeout(() => setShowPaymentModal(true), 3000);
+      finalResponse += " ...and with that, your three wishes are complete.";
+      setTimeout(() => setShowPaymentModal(true), 4000);
     }
 
-    setMessages(prev => [...prev, { 
-      role: 'genie', 
-      content: finalResponse 
-    }]);
-    
-    // Speak the response
+    setCurrentResponse(finalResponse);
+    setUserWish('');
     speakText(finalResponse);
-    
     setIsLoading(false);
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendWish();
+  const startListening = () => {
+    if (!recognitionRef.current || isLoading || isPlaying) return;
+    
+    if (wishesLeft === 0) {
+      setShowPaymentModal(true);
+      return;
+    }
+    
+    // Stop any playing audio
+    window.speechSynthesis?.cancel();
+    setAudioLevel(0);
+    
+    // Resume audio context on user interaction
+    if (audioContextRef.current?.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+    
+    recognitionRef.current.start();
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 
+  // Calculate orb scale based on audio level
+  const orbScale = 1 + (audioLevel * 0.4);
+  const glowIntensity = 20 + (audioLevel * 80);
+  const glowOpacity = 0.5 + (audioLevel * 0.5);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-slate-900/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-amber-500/20 overflow-hidden">
-        
-        {/* Header */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-6 border-b border-amber-500/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-8 h-8 text-amber-400" />
-              <div>
-                <h1 className="text-3xl font-bold text-amber-400">
-                  genie
-                </h1>
-                <p className="text-slate-400 text-sm">ancient mystical entity</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors border border-amber-500/20"
-                title="settings"
-              >
-                <Settings className="w-5 h-5 text-amber-400" />
-              </button>
-              <button
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors border border-amber-500/20"
-                title={voiceEnabled ? "voice on" : "voice off"}
-              >
-                {voiceEnabled ? (
-                  <Volume2 className="w-5 h-5 text-amber-400" />
-                ) : (
-                  <VolumeX className="w-5 h-5 text-slate-500" />
-                )}
-              </button>
-              <div className="text-right">
-                <div className="text-amber-400 font-bold text-2xl">{wishesLeft}</div>
-                <div className="text-slate-400 text-xs">wishes remaining</div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden">
+      
+      {/* Ambient particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-amber-400/30 rounded-full animate-float"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 5}s`,
+              animationDuration: `${5 + Math.random() * 10}s`
+            }}
+          />
+        ))}
+      </div>
 
-        {/* Messages */}
-        <div className="h-[500px] overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-xl p-4 ${
-                  message.role === 'user'
-                    ? 'bg-slate-700 text-white'
-                    : 'bg-slate-800/80 text-slate-100 border border-amber-500/20'
-                }`}
-              >
-                {message.role === 'genie' && (
-                  <div className="flex items-center gap-2 mb-2 text-amber-400 font-semibold text-sm">
-                    <Sparkles className="w-4 h-4" />
-                    <span>genie</span>
-                  </div>
-                )}
-                <p className="whitespace-pre-wrap">{message.content}</p>
-              </div>
-            </div>
-          ))}
-          
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-slate-800/80 text-slate-100 rounded-xl p-4 border border-amber-500/20">
-                <div className="flex items-center gap-2 mb-2 text-amber-400 font-semibold text-sm">
-                  <Sparkles className="w-4 h-4" />
-                  <span>genie</span>
-                </div>
-                <p className="text-slate-300">...</p>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
+      {/* Header */}
+      <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-10">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-6 h-6 text-amber-400" />
+          <span className="text-amber-400 font-bold text-xl tracking-wider">GENIE</span>
         </div>
-
-        {/* Input */}
-        <div className="border-t border-amber-500/20 p-6 bg-slate-900/50">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={wishesLeft > 0 ? "state your wish..." : "your wishes have been granted"}
-              disabled={isLoading}
-              className="flex-1 bg-slate-800 text-white placeholder-slate-500 rounded-lg px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500/40 disabled:opacity-50"
-            />
-            <button
-              onClick={handleSendWish}
-              disabled={isLoading || (wishesLeft > 0 && !input.trim())}
-              className="bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-6 py-3 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Send className="w-4 h-4" />
-              {wishesLeft === 0 ? 'get more wishes' : 'wish'}
-            </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            className="p-2 rounded-full bg-slate-800/50 hover:bg-slate-700/50 transition-colors border border-amber-500/20"
+          >
+            {voiceEnabled ? (
+              <Volume2 className="w-5 h-5 text-amber-400" />
+            ) : (
+              <VolumeX className="w-5 h-5 text-slate-500" />
+            )}
+          </button>
+          <div className="text-center">
+            <div className="text-amber-400 font-bold text-2xl">{wishesLeft}</div>
+            <div className="text-slate-500 text-xs uppercase tracking-wider">wishes</div>
           </div>
-          
-          {wishesLeft === 0 && (
-            <p className="text-amber-400/60 text-sm mt-3 text-center">
-              the lamp has been sealed
-            </p>
-          )}
         </div>
       </div>
 
+      {/* Main Orb */}
+      <div className="relative flex flex-col items-center justify-center flex-1 w-full max-w-lg">
+        
+        {/* The Lamp/Orb */}
+        <div 
+          className="relative cursor-pointer group"
+          onClick={isListening ? stopListening : startListening}
+        >
+          {/* Outer glow rings */}
+          <div 
+            className="absolute inset-0 rounded-full transition-all duration-100"
+            style={{
+              transform: `scale(${orbScale * 1.5})`,
+              background: `radial-gradient(circle, rgba(251, 191, 36, ${glowOpacity * 0.1}) 0%, transparent 70%)`,
+              filter: `blur(${glowIntensity}px)`
+            }}
+          />
+          <div 
+            className="absolute inset-0 rounded-full transition-all duration-100"
+            style={{
+              transform: `scale(${orbScale * 1.2})`,
+              background: `radial-gradient(circle, rgba(251, 191, 36, ${glowOpacity * 0.2}) 0%, transparent 60%)`,
+              filter: `blur(${glowIntensity * 0.5}px)`
+            }}
+          />
+          
+          {/* Main orb */}
+          <div 
+            className="relative w-48 h-48 rounded-full transition-all duration-100 ease-out"
+            style={{
+              transform: `scale(${orbScale})`,
+              background: `radial-gradient(circle at 30% 30%, 
+                rgba(251, 191, 36, 0.9) 0%, 
+                rgba(217, 119, 6, 0.8) 30%, 
+                rgba(180, 83, 9, 0.9) 60%, 
+                rgba(120, 53, 15, 0.95) 100%)`,
+              boxShadow: `
+                0 0 ${glowIntensity}px rgba(251, 191, 36, ${glowOpacity}),
+                0 0 ${glowIntensity * 2}px rgba(251, 191, 36, ${glowOpacity * 0.5}),
+                inset 0 0 60px rgba(0, 0, 0, 0.3),
+                inset 0 -20px 40px rgba(0, 0, 0, 0.4)
+              `
+            }}
+          >
+            {/* Inner shine */}
+            <div className="absolute top-6 left-8 w-16 h-8 bg-gradient-to-br from-white/40 to-transparent rounded-full blur-sm" />
+            
+            {/* Center icon */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {isListening ? (
+                <div className="flex items-center justify-center gap-1">
+                  {[...Array(5)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-1 bg-white/80 rounded-full animate-soundbar"
+                      style={{
+                        height: `${20 + Math.random() * 30}px`,
+                        animationDelay: `${i * 0.1}s`
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : isLoading ? (
+                <div className="w-12 h-12 border-4 border-white/20 border-t-white/80 rounded-full animate-spin" />
+              ) : (
+                <Sparkles className="w-16 h-16 text-white/80" />
+              )}
+            </div>
+          </div>
+          
+          {/* Tap hint */}
+          {!isListening && !isLoading && !isPlaying && (
+            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 text-amber-400/60 text-sm animate-pulse whitespace-nowrap">
+              tap to speak
+            </div>
+          )}
+        </div>
+
+        {/* Response Text */}
+        <div className="mt-24 px-6 text-center max-w-md">
+          <p 
+            className={`text-xl leading-relaxed transition-all duration-300 ${
+              isLoading 
+                ? 'text-slate-400 italic' 
+                : isListening
+                  ? 'text-amber-300'
+                  : 'text-slate-200'
+            }`}
+          >
+            {currentResponse}
+          </p>
+        </div>
+      </div>
+
+      {/* Bottom mic button (alternative input) */}
+      {speechSupported && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+          <button
+            onClick={isListening ? stopListening : startListening}
+            disabled={isLoading || isPlaying}
+            className={`p-6 rounded-full transition-all duration-300 ${
+              isListening
+                ? 'bg-red-500 hover:bg-red-400 scale-110 animate-pulse'
+                : 'bg-slate-800/80 hover:bg-slate-700/80 border border-amber-500/30'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {isListening ? (
+              <MicOff className="w-8 h-8 text-white" />
+            ) : (
+              <Mic className="w-8 h-8 text-amber-400" />
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border-2 border-amber-500/30 rounded-2xl p-8 max-w-md w-full relative">
-            {/* Close button */}
-            <button
-              onClick={() => setShowPaymentModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-8 max-w-md w-full text-center">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
+              <Sparkles className="w-10 h-10 text-white" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-amber-400 mb-2">
+              the lamp grows cold
+            </h2>
+            <p className="text-slate-400 mb-6">
+              rekindle the flame for <span className="text-amber-400 font-bold">2 USDT</span>
+            </p>
 
-            {/* Content */}
-            <div className="text-center">
-              <Sparkles className="w-16 h-16 text-amber-400 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-amber-400 mb-2">
-                out of wishes?
-              </h2>
-              <p className="text-slate-300 mb-6">
-                get 3 more wishes for just <span className="text-amber-400 font-bold">2 USDT</span>
-              </p>
-
-              {/* Wallet Address */}
-              <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                <p className="text-xs text-slate-400 mb-2">send USDT (any network) to:</p>
-                <div className="flex items-center justify-between bg-slate-950 rounded px-3 py-2">
-                  <code className="text-amber-400 text-sm break-all">
-                    0x47fb8de65435c89fc6252a35dc82e7cb5a391b79
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText('0x47fb8de65435c89fc6252a35dc82e7cb5a391b79');
-                      alert('Address copied!');
-                    }}
-                    className="ml-2 text-amber-400 hover:text-amber-300 transition-colors"
-                  >
-                    📋
-                  </button>
-                </div>
-              </div>
-
-              {/* Info text */}
-              <p className="text-xs text-slate-500 mb-6">
-                💡 funds are used to keep the app running and cover API costs
-              </p>
-
-              {/* Action button */}
+            <div className="bg-slate-800 rounded-lg p-4 mb-6">
+              <p className="text-xs text-slate-500 mb-2">send USDT to:</p>
+              <code className="text-amber-400 text-sm break-all">
+                0x47fb8de65435c89fc6252a35dc82e7cb5a391b79
+              </code>
               <button
                 onClick={() => {
-                  setWishesLeft(3);
-                  setShowPaymentModal(false);
-                  alert('3 wishes added! enjoy the chaos 🔥');
+                  navigator.clipboard.writeText('0x47fb8de65435c89fc6252a35dc82e7cb5a391b79');
                 }}
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-lg transition-all"
+                className="mt-2 text-xs text-slate-400 hover:text-amber-400 transition-colors"
               >
-                i've sent 2 USDT - add 3 wishes
+                copy address
               </button>
-
-              <p className="text-xs text-slate-500 mt-3">
-                honor system - click after sending payment
-              </p>
             </div>
+
+            <button
+              onClick={() => {
+                setWishesLeft(3);
+                setShowPaymentModal(false);
+                setCurrentResponse("the flame burns anew. speak your wish, mortal...");
+              }}
+              className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 px-6 rounded-xl transition-all"
+            >
+              i've sent payment
+            </button>
+            
+            <button
+              onClick={() => setShowPaymentModal(false)}
+              className="mt-3 text-slate-500 hover:text-slate-300 text-sm transition-colors"
+            >
+              maybe later
+            </button>
           </div>
         </div>
       )}
+
+      {/* Custom styles */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+          25% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+          50% { transform: translateY(-40px) translateX(-10px); opacity: 0.3; }
+          75% { transform: translateY(-20px) translateX(5px); opacity: 0.5; }
+        }
+        
+        @keyframes soundbar {
+          0%, 100% { height: 10px; }
+          50% { height: 40px; }
+        }
+        
+        .animate-float {
+          animation: float linear infinite;
+        }
+        
+        .animate-soundbar {
+          animation: soundbar 0.5s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }
