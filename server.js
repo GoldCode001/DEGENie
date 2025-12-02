@@ -5,9 +5,18 @@ import fetch from 'node-fetch';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// API Keys from environment variables
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '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';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_c45cc1bd3b396ca5277a1bc62c005d216140371f44c23f5f';
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static('dist'));
+
+console.log('🔑 API Keys loaded:', {
+  openrouter: OPENROUTER_API_KEY ? 'Present (length: ' + OPENROUTER_API_KEY.length + ')' : 'Missing',
+  elevenlabs: ELEVENLABS_API_KEY ? 'Present (length: ' + ELEVENLABS_API_KEY.length + ')' : 'Missing'
+});
 
 // OpenRouter proxy
 app.post('/api/chat', async (req, res) => {
@@ -18,13 +27,26 @@ app.post('/api/chat', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer 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'
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`
       },
       body: JSON.stringify(req.body)
     });
 
     const data = await response.json();
-    console.log('✅ OpenRouter response received');
+    console.log('📡 OpenRouter response:', JSON.stringify(data).substring(0, 200));
+    
+    if (!response.ok) {
+      console.error('❌ OpenRouter API error:', data);
+      return res.status(response.status).json(data);
+    }
+    
+    // Check if response has expected structure
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('❌ Unexpected response structure:', data);
+      return res.status(500).json({ error: 'Invalid response structure', data });
+    }
+    
+    console.log('✅ OpenRouter response received successfully');
     res.json(data);
   } catch (error) {
     console.error('❌ OpenRouter error:', error);
@@ -43,7 +65,7 @@ app.post('/api/voice', async (req, res) => {
       headers: {
         'Accept': 'audio/mpeg',
         'Content-Type': 'application/json',
-        'xi-api-key': 'sk_c45cc1bd3b396ca5277a1bc62c005d216140371f44c23f5f'
+        'xi-api-key': ELEVENLABS_API_KEY
       },
       body: JSON.stringify({
         text: text,
@@ -57,14 +79,17 @@ app.post('/api/voice', async (req, res) => {
       })
     });
 
+    console.log('📡 ElevenLabs response status:', response.status);
+
     if (response.ok) {
       console.log('✅ ElevenLabs audio received');
       const arrayBuffer = await response.arrayBuffer();
       res.set('Content-Type', 'audio/mpeg');
       res.send(Buffer.from(arrayBuffer));
     } else {
-      console.error('❌ ElevenLabs error:', response.status);
-      res.status(response.status).json({ error: 'ElevenLabs API error' });
+      const errorText = await response.text();
+      console.error('❌ ElevenLabs error:', response.status, errorText);
+      res.status(response.status).json({ error: 'ElevenLabs API error', details: errorText });
     }
   } catch (error) {
     console.error('❌ Voice error:', error);
