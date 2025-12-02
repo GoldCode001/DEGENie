@@ -13,6 +13,8 @@ export default function UnhingedGenie() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [userWish, setUserWish] = useState('');
+  const [displayedWish, setDisplayedWish] = useState('');
+  const [genieResponse, setGenieResponse] = useState('');
   
   const recognitionRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -271,20 +273,23 @@ respond in all lowercase:`;
     }
 
     setIsLoading(true);
+    setDisplayedWish(wish);
+    setGenieResponse('');
     setCurrentResponse("the genie contemplates your fate...");
 
     const newWishesLeft = wishesLeft - 1;
     setWishesLeft(newWishesLeft);
 
-    const genieResponse = await generateGenieResponse(wish);
+    const response = await generateGenieResponse(wish);
     
-    let finalResponse = genieResponse;
+    let finalResponse = response;
     
     if (newWishesLeft === 0) {
       finalResponse += " ...and with that, your three wishes are complete.";
       setTimeout(() => setShowPaymentModal(true), 4000);
     }
 
+    setGenieResponse(finalResponse);
     setCurrentResponse(finalResponse);
     setUserWish('');
     speakText(finalResponse);
@@ -323,7 +328,7 @@ respond in all lowercase:`;
   const glowOpacity = 0.5 + (audioLevel * 0.5);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center p-4 overflow-hidden">
       
       {/* Ambient particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -366,7 +371,7 @@ respond in all lowercase:`;
       </div>
 
       {/* Main Orb */}
-      <div className="relative flex flex-col items-center justify-center flex-1 w-full max-w-lg">
+      <div className="relative flex flex-col items-center pt-20 w-full max-w-lg">
         
         {/* The Lamp/Orb */}
         <div 
@@ -443,38 +448,74 @@ respond in all lowercase:`;
           )}
         </div>
 
-        {/* Response Text */}
-        <div className="mt-24 px-6 text-center max-w-md">
-          <p 
-            className={`text-xl leading-relaxed transition-all duration-300 ${
-              isLoading 
-                ? 'text-slate-400 italic' 
-                : isListening
-                  ? 'text-amber-300'
-                  : 'text-slate-200'
-            }`}
-          >
-            {currentResponse}
-          </p>
+        {/* Wish and Response Cards */}
+        <div className="mt-20 px-4 w-full max-w-lg space-y-4">
+          
+          {/* Wish Card */}
+          {(displayedWish || isListening) && (
+            <div 
+              className="relative rounded-2xl p-4 transition-all duration-300"
+              style={{
+                background: 'rgba(15, 23, 42, 0.8)',
+                boxShadow: '0 0 30px rgba(0, 0, 0, 0.8), 0 0 60px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(100, 116, 139, 0.2)'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                <span className="text-xs uppercase tracking-wider text-slate-500 font-medium">wish</span>
+              </div>
+              <p className={`text-lg leading-relaxed ${isListening ? 'text-amber-300' : 'text-slate-300'}`}>
+                {isListening ? (userWish || 'listening...') : displayedWish}
+              </p>
+            </div>
+          )}
+
+          {/* Response Card */}
+          {(genieResponse || isLoading) && (
+            <div 
+              className="relative rounded-2xl p-4 transition-all duration-300"
+              style={{
+                background: 'rgba(15, 23, 42, 0.8)',
+                boxShadow: '0 0 30px rgba(0, 0, 0, 0.8), 0 0 60px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(251, 191, 36, 0.2)'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                <span className="text-xs uppercase tracking-wider text-amber-500/80 font-medium">response</span>
+              </div>
+              <p className={`text-lg leading-relaxed ${isLoading ? 'text-slate-400 italic' : 'text-slate-200'}`}>
+                {isLoading ? 'the genie contemplates your fate...' : genieResponse}
+              </p>
+            </div>
+          )}
+
+          {/* Initial prompt when nothing is shown */}
+          {!displayedWish && !isListening && !genieResponse && (
+            <p className="text-center text-slate-400 text-lg">
+              tap the lamp and speak your wish, mortal...
+            </p>
+          )}
         </div>
       </div>
 
       {/* Bottom mic button (alternative input) */}
       {speechSupported && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+        <div className="pb-8 pt-4">
           <button
             onClick={isListening ? stopListening : startListening}
             disabled={isLoading || isPlaying}
-            className={`p-6 rounded-full transition-all duration-300 ${
+            className={`p-5 rounded-full transition-all duration-300 ${
               isListening
                 ? 'bg-red-500 hover:bg-red-400 scale-110 animate-pulse'
                 : 'bg-slate-800/80 hover:bg-slate-700/80 border border-amber-500/30'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {isListening ? (
-              <MicOff className="w-8 h-8 text-white" />
+              <MicOff className="w-7 h-7 text-white" />
             ) : (
-              <Mic className="w-8 h-8 text-amber-400" />
+              <Mic className="w-7 h-7 text-amber-400" />
             )}
           </button>
         </div>
