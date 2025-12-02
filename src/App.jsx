@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, Volume2, VolumeX, Settings } from 'lucide-react';
+import { Sparkles, Send, Volume2, VolumeX, Settings, X } from 'lucide-react';
 
 export default function UnhingedGenie() {
   const [messages, setMessages] = useState([
@@ -15,6 +15,7 @@ export default function UnhingedGenie() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [elevenLabsKey, setElevenLabsKey] = useState('sk_c45cc1bd3b396ca5277a1bc62c005d216140371f44c23f5f');
   const [showSettings, setShowSettings] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -116,39 +117,34 @@ export default function UnhingedGenie() {
   };
 
   const generateGenieResponse = async (userWish) => {
-    const geniePrompt = `you're a genie but you're absolutely unhinged and savage af. someone made this wish: "${userWish}"
+    const geniePrompt = `you're a genie but you're completely unhinged and savage. someone made this wish: "${userWish}"
 
-YOUR PERSONALITY: chaotic, roasts hard, no filter, dark humor, internet culture expert, crypto degen energy
+YOUR VIBE: chaotic, no filter, uses expressions like smh, wtf, tf naturally. you're that friend who roasts everyone but stays just on the edge of going too far.
 
 RULES:
-- 70%: engage with their wish but ROAST IT HARD using references from anywhere - movies, history, crypto, memes, science, pop culture
-- 30%: acknowledge their wish in 3-5 words then pivot to unrelated chaos
+- 70%: engage with their wish but ROAST IT using references from movies, crypto, history, memes, pop culture
+- 30%: acknowledge wish (3-5 words) then pivot to unrelated chaos
 
-be DEADLY. be SAVAGE. make people laugh and feel slightly attacked at the same time.
+EXPRESS YOURSELF: use smh, wtf, tf, bruh, nah, fr, deadass, lowkey, literally naturally. you're unhinged but clever.
 
-use slang: nah, bruh, fr, lowkey, deadass, tbh, literally, cap, ngmi, gm, cope, etc
-
-EXAMPLES OF DEADLY RESPONSES:
+EXAMPLES OF THE ENERGY:
 
 "i wish for a lambo"
-→ "a lambo lmao. my guy you're out here wishing to a chatbot and your first thought is overpriced italian maintenance fees on wheels. thanos had the infinity stones and wanted balance. you got three wishes and want to compensate. we are not the same"
+→ "a lambo lmao. my guy really said lambo. bro that's just an overpriced oil leak with an attitude. batman drives a literal tank and you out here wanting an italian go-kart. the priorities are questionable fr fr"
 
 "i wish for bitcoin to hit 100k"
-→ "100k bitcoin yeah? cool cool. you know what else people wished for? world peace, cure for cancer, their dad to come back. but nah you're out here with 'number go up' energy. michael burry saw the housing crash coming. i see your portfolio and it's giving 2022 vibes"
+→ "100k bitcoin smh. my guy we manifesting now? cool cool. next wish gonna be world peace? your dad coming back? same energy honestly. michael burry predicted the crash. i'm predicting your hopium overdose"
 
 "i wish to be rich"
-→ "rich. my guy just said rich. not how, not when, just 'rich'. that's like asking gps for 'somewhere nice' and expecting a destination. jeff bezos started amazon in a garage. you started this wish in delusion. the gap is astronomical"
-
-"i wish for a girlfriend"
-→ "girlfriend huh, respect the honesty. but homie you're asking a lamp. a LAMP. even aladdin had to go outside and steal bread first. you skipped the entire character development arc and went straight to final boss energy. touch grass g"
+→ "rich. RICH. bro just said 'rich' to a chatbot like it's a genie. the delusion is immaculate. bezos started amazon in a garage. you started this wish in your bedroom. wtf is the plan here exactly"
 
 "i wish for 5 eth"
-→ "5 eth okay. fun fact: ethereum's gas fees cost more than your ambition apparently. vitalik created a whole blockchain. you created this mid-tier wish. somewhere a vc is laughing and they don't even know why"
+→ "5 eth okay so we doing small dreams now? vitalik created a whole ass blockchain. you created a mid tier wish. tf happened to thinking big? gas fees cost more than this ambition"
 
-"i wish for success"
-→ "success. vague ass wish energy. that's like ordering 'food' at a restaurant. gordon ramsay would throw you out. i'm a mystical being and even i need specifics. this is why you're still saying 'one day' bro"
+"i wish for a girlfriend"
+→ "a girlfriend. my guy you're asking a LAMP. a literal lamp. not even a real genie, a javascript function. aladdin had to steal bread and ride a magic carpet. you won't even open the dating app. the gap is insane"
 
-BE CREATIVE. ROAST HARD. REFERENCE EVERYTHING. make it personal but funny. keep it 2-4 sentences max.
+BE UNHINGED BUT CREATIVE. roast hard but make it funny. use wtf, smh, tf naturally like a person would text. keep it 2-4 sentences.
 
 respond in all lowercase:`;
 
@@ -223,7 +219,13 @@ respond in all lowercase:`;
   };
 
   const handleSendWish = async () => {
-    if (!input.trim() || wishesLeft === 0 || isLoading) return;
+    if (!input.trim() || isLoading) return;
+    
+    // If no wishes left, show payment modal
+    if (wishesLeft === 0) {
+      setShowPaymentModal(true);
+      return;
+    }
 
     const userWish = input.trim();
     setInput('');
@@ -243,7 +245,9 @@ respond in all lowercase:`;
     
     // Add special message if that was the last wish
     if (newWishesLeft === 0) {
-      finalResponse += "\n\nand with that, your three wishes are complete. the lamp grows cold, the magic fades. i must return to the void... or maybe just my netflix queue. same thing really.";
+      finalResponse += "\n\nand with that, your three wishes are complete. the lamp grows cold, the magic fades. but hey, for just 2 usdt you can get 3 more wishes. keep the chaos going.";
+      // Show payment modal after a delay
+      setTimeout(() => setShowPaymentModal(true), 3000);
     }
 
     setMessages(prev => [...prev, { 
@@ -361,11 +365,11 @@ respond in all lowercase:`;
             />
             <button
               onClick={handleSendWish}
-              disabled={!input.trim() || wishesLeft === 0 || isLoading}
+              disabled={isLoading || (wishesLeft > 0 && !input.trim())}
               className="bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-6 py-3 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Send className="w-4 h-4" />
-              wish
+              {wishesLeft === 0 ? 'get more wishes' : 'wish'}
             </button>
           </div>
           
@@ -376,6 +380,72 @@ respond in all lowercase:`;
           )}
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border-2 border-amber-500/30 rounded-2xl p-8 max-w-md w-full relative">
+            {/* Close button */}
+            <button
+              onClick={() => setShowPaymentModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Content */}
+            <div className="text-center">
+              <Sparkles className="w-16 h-16 text-amber-400 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-amber-400 mb-2">
+                out of wishes?
+              </h2>
+              <p className="text-slate-300 mb-6">
+                get 3 more wishes for just <span className="text-amber-400 font-bold">2 USDT</span>
+              </p>
+
+              {/* Wallet Address */}
+              <div className="bg-slate-800 rounded-lg p-4 mb-4">
+                <p className="text-xs text-slate-400 mb-2">send USDT (any network) to:</p>
+                <div className="flex items-center justify-between bg-slate-950 rounded px-3 py-2">
+                  <code className="text-amber-400 text-sm break-all">
+                    0x47fb8de65435c89fc6252a35dc82e7cb5a391b79
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('0x47fb8de65435c89fc6252a35dc82e7cb5a391b79');
+                      alert('Address copied!');
+                    }}
+                    className="ml-2 text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+
+              {/* Info text */}
+              <p className="text-xs text-slate-500 mb-6">
+                💡 funds are used to keep the app running and cover API costs
+              </p>
+
+              {/* Action button */}
+              <button
+                onClick={() => {
+                  setWishesLeft(3);
+                  setShowPaymentModal(false);
+                  alert('3 wishes added! enjoy the chaos 🔥');
+                }}
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-lg transition-all"
+              >
+                i've sent 2 USDT - add 3 wishes
+              </button>
+
+              <p className="text-xs text-slate-500 mt-3">
+                honor system - click after sending payment
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

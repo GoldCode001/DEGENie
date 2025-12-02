@@ -58,27 +58,121 @@ app.post('/api/chat', async (req, res) => {
 function preprocessForTTS(text) {
   let ttsText = text;
   
-  // Expand crypto abbreviations
+  // MASSIVE abbreviation expansion list
   const abbreviations = {
+    // Crypto
     'btc': 'bitcoin',
-    'eth': 'ethereum',
+    'eth': 'ethereum', 
     'sol': 'solana',
+    'bnb': 'binance coin',
+    'ada': 'cardano',
+    'dot': 'polkadot',
+    'matic': 'polygon',
+    'avax': 'avalanche',
+    'link': 'chainlink',
+    'atom': 'cosmos',
+    'xrp': 'ripple',
+    'doge': 'dogecoin',
+    'shib': 'shiba inu',
+    'uni': 'uniswap',
+    'aave': 'ah-vay',
+    'ftx': 'f t x',
     'nft': 'n f t',
+    'nfts': 'n f ts',
     'defi': 'dee-fie',
     'dao': 'd a o',
     'dapp': 'dap',
+    'dapps': 'daps',
     'gm': 'good morning',
+    'gn': 'good night',
     'ngmi': 'not gonna make it',
     'wagmi': 'we are all gonna make it',
     'fomo': 'foe-moe',
     'hodl': 'hold',
+    'hodling': 'holding',
     'rekt': 'wrecked',
     'wen': 'when',
     'ser': 'sir',
     'anon': 'anonymous',
     'degen': 'degenerate',
+    'degens': 'degenerates',
     'hopium': 'hope-ium',
-    'copium': 'cope-ium'
+    'copium': 'cope-ium',
+    'ath': 'all time high',
+    'atl': 'all time low',
+    'mcap': 'market cap',
+    'roi': 'r o i',
+    'apy': 'a p y',
+    'apr': 'a p r',
+    'kyc': 'k y c',
+    'aml': 'a m l',
+    'ico': 'i c o',
+    'ido': 'i d o',
+    'ieo': 'i e o',
+    'dex': 'decks',
+    'cex': 'centralized exchange',
+    'p2p': 'peer to peer',
+    'pow': 'proof of work',
+    'pos': 'proof of stake',
+    'nfa': 'not financial advice',
+    'dyor': 'do your own research',
+    
+    // Internet/Texting slang
+    'imo': 'in my opinion',
+    'imho': 'in my humble opinion',
+    'afaik': 'as far as i know',
+    'iirc': 'if i recall correctly',
+    'tl;dr': 'too long didnt read',
+    'tldr': 'too long didnt read',
+    'nsfw': 'not safe for work',
+    'sfw': 'safe for work',
+    'dm': 'direct message',
+    'dms': 'direct messages',
+    'irl': 'in real life',
+    'ama': 'ask me anything',
+    'eli5': 'explain like im five',
+    'ftw': 'for the win',
+    'goat': 'greatest of all time',
+    'og': 'original',
+    'op': 'original poster',
+    'rn': 'right now',
+    'asap': 'as soon as possible',
+    'fyi': 'for your information',
+    'psa': 'public service announcement',
+    'eta': 'estimated time of arrival',
+    'btw': 'by the way',
+    'gg': 'good game',
+    'wp': 'well played',
+    'mvp': 'most valuable player',
+    'aka': 'also known as',
+    'vs': 'versus',
+    'etc': 'et cetera',
+    'ie': 'that is',
+    'eg': 'for example',
+    
+    // Common texting
+    'u': 'you',
+    'ur': 'your',
+    'ppl': 'people',
+    'msg': 'message',
+    'thx': 'thanks',
+    'plz': 'please',
+    'sry': 'sorry',
+    'np': 'no problem',
+    'jk': 'just kidding',
+    'yk': 'you know',
+    'rly': 'really',
+    'prob': 'probably',
+    'def': 'definitely',
+    'obv': 'obviously',
+    'tho': 'though',
+    'w/': 'with',
+    'w/o': 'without',
+    'b4': 'before',
+    'l8r': 'later',
+    'tmr': 'tomorrow',
+    '2day': 'today',
+    'tn': 'tonight'
   };
   
   // Replace abbreviations (case insensitive, word boundaries)
@@ -87,29 +181,38 @@ function preprocessForTTS(text) {
     ttsText = ttsText.replace(regex, abbreviations[abbr]);
   });
   
-  // Add natural speech elements randomly
-  const laughVariants = ['*chuckle*', '*slight laugh*', '*snicker*'];
-  const pauseVariants = ['...', ',', ''];
+  // Add ACTUAL laughs that Mark will perform (30% chance)
+  // Using natural descriptors that voice models interpret as actual laughter
+  const laughSounds = [
+    '(heh)',
+    '(ha)',
+    '(hah)',
+    '(chuckles)',
+    '(laughs)'
+  ];
   
-  // Add occasional laughs before savage lines (30% chance)
-  if (Math.random() > 0.7 && (ttsText.includes('my guy') || ttsText.includes('bro'))) {
-    const laugh = laughVariants[Math.floor(Math.random() * laughVariants.length)];
+  if (Math.random() > 0.7 && (ttsText.includes('my guy') || ttsText.includes('bro') || ttsText.includes('lmao'))) {
+    const laugh = laughSounds[Math.floor(Math.random() * laughSounds.length)];
     ttsText = laugh + ' ' + ttsText;
   }
   
-  // Add slight pauses for emphasis
-  ttsText = ttsText.replace(/\. /g, '... '); // Longer pauses between sentences
-  ttsText = ttsText.replace(/\? /g, '?... '); // Pause after questions
+  // Add slight pauses for emphasis and natural delivery (reduced for faster pace)
+  ttsText = ttsText.replace(/\. /g, ', '); // Quick pause instead of long pause
+  ttsText = ttsText.replace(/\? /g, '? '); // Keep question pause normal
+  ttsText = ttsText.replace(/ - /g, ' '); // No pause for dashes
   
-  // Expand common slang for clarity
+  // Expand some common slang but keep personality expressions
+  ttsText = ttsText.replace(/\bfr fr\b/gi, 'for real for real');
   ttsText = ttsText.replace(/\bfr\b/gi, 'for real');
   ttsText = ttsText.replace(/\btbh\b/gi, 'to be honest');
   ttsText = ttsText.replace(/\bidk\b/gi, 'I don\'t know');
   ttsText = ttsText.replace(/\bomg\b/gi, 'oh my god');
-  ttsText = ttsText.replace(/\bwtf\b/gi, 'what the');
-  ttsText = ttsText.replace(/\bsmh\b/gi, 'shaking my head');
-  ttsText = ttsText.replace(/\baf\b/gi, 'as hell');
   ttsText = ttsText.replace(/\bngl\b/gi, 'not gonna lie');
+  ttsText = ttsText.replace(/\baf\b/gi, 'as hell');
+  ttsText = ttsText.replace(/\blmao\b/gi, '(laughs)');
+  ttsText = ttsText.replace(/\blol\b/gi, '(chuckles)');
+  ttsText = ttsText.replace(/\bmfs\b/gi, 'people');
+  ttsText = ttsText.replace(/\bmf\b/gi, 'person');
   
   return ttsText;
 }
