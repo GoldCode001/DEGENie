@@ -196,10 +196,8 @@ function preprocessForTTS(text) {
     ttsText = laugh + ' ' + ttsText;
   }
   
-  // Add slight pauses for emphasis and natural delivery (reduced for faster pace)
-  ttsText = ttsText.replace(/\. /g, ', '); // Quick pause instead of long pause
-  ttsText = ttsText.replace(/\? /g, '? '); // Keep question pause normal
-  ttsText = ttsText.replace(/ - /g, ' '); // No pause for dashes
+  // Natural delivery - no artificial pauses added
+  // Mark's voice will naturally pace the speech
   
   // Expand some common slang but keep personality expressions
   ttsText = ttsText.replace(/\bfr fr\b/gi, 'for real for real');
