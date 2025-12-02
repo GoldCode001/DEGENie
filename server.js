@@ -69,7 +69,7 @@ app.post('/api/voice', async (req, res) => {
       },
       body: JSON.stringify({
         text: text,
-        model_id: 'eleven_monolingual_v1',
+        model_id: 'eleven_turbo_v2_5', // Updated to newer free tier model
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75,
