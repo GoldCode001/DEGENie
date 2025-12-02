@@ -20,6 +20,8 @@ export default function UnhingedGenie() {
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const pendingWishRef = useRef('');
+  const submitWishRef = useRef(null);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -46,20 +48,18 @@ export default function UnhingedGenie() {
         
         console.log('🗣️ Transcript:', transcript);
         setUserWish(transcript);
-        setCurrentResponse(`"${transcript}"`);
         
+        // Store in ref for use in onend
         if (event.results[0].isFinal) {
           console.log('✅ Final transcript received');
-          // Auto-submit after getting final transcript
-          setTimeout(() => {
-            handleWish(transcript);
-          }, 500);
+          pendingWishRef.current = transcript;
         }
       };
       
       recognition.onerror = (event) => {
         console.error('❌ Speech recognition error:', event.error);
         setIsListening(false);
+        pendingWishRef.current = '';
         setCurrentResponse("couldn't hear you, mortal. tap again.");
         
         if (event.error === 'not-allowed') {
@@ -70,6 +70,19 @@ export default function UnhingedGenie() {
       recognition.onend = () => {
         console.log('🎤 Voice recognition ended');
         setIsListening(false);
+        
+        // Submit the wish if we have one
+        const wish = pendingWishRef.current;
+        if (wish && wish.trim()) {
+          console.log('📤 Submitting wish:', wish);
+          pendingWishRef.current = '';
+          // Use a small delay to ensure state is updated
+          setTimeout(() => {
+            if (submitWishRef.current) {
+              submitWishRef.current(wish);
+            }
+          }, 100);
+        }
       };
       
       recognitionRef.current = recognition;
@@ -295,6 +308,9 @@ respond in all lowercase:`;
     speakText(finalResponse);
     setIsLoading(false);
   };
+
+  // Keep the ref updated with the latest handleWish function
+  submitWishRef.current = handleWish;
 
   const startListening = () => {
     if (!recognitionRef.current || isLoading || isPlaying) return;
